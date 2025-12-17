@@ -155,6 +155,35 @@ final class VaultViewModel: ObservableObject {
         }
     }
 
+    func changePassword(currentPassword: String, newPassword: String, confirmNewPassword: String) {
+        guard isInitialized else {
+            setStatus("Create a vault before changing the password.", isError: true)
+            return
+        }
+        guard !currentPassword.isEmpty, !newPassword.isEmpty else {
+            setStatus("Enter your current password and a new password.", isError: true)
+            return
+        }
+        guard newPassword == confirmNewPassword else {
+            setStatus("New password confirmation does not match.", isError: true)
+            return
+        }
+
+        do {
+            try service.changePassword(
+                currentPasswordUTF8: Data(currentPassword.utf8),
+                newPasswordUTF8: Data(newPassword.utf8)
+            )
+            // Clear any in-memory key and force re-unlock with the new password (keeps behavior predictable).
+            vaultKey = nil
+            isUnlocked = false
+            password = ""
+            setStatus("Password updated. Please unlock again.", isError: false)
+        } catch {
+            setStatus("Password update failed: \(error)", isError: true)
+        }
+    }
+
     // MARK: - Attempt limiting
 
     private var isLockedOut: Bool {

@@ -84,6 +84,65 @@ final class VaultService {
         return .init(vaultKey: key, items: items)
     }
 
+    /// Changes the vault password by re-wrapping the existing vault key with a new password-derived key.
+    /// This does NOT re-encrypt any stored vault files (they stay encrypted with the same vault key).
+    func changePassword(
+        currentPasswordUTF8: Data,
+        newPasswordUTF8: Data,
+        iterations: Int = 200_000
+    ) throws {
+        guard let cfg = try store.loadConfig() else { throw VaultServiceError.vaultNotInitialized }
+        guard cfg.kdf.algorithm == "PBKDF2-HMAC-SHA256" else { throw VaultServiceError.unsupportedKDF }
+
+        guard
+            let salt = Data(base64Encoded: cfg.kdf.saltB64),
+            let wrappedCombined = Data(base64Encoded: cfg.wrappedVaultKeyB64)
+        else { throw VaultServiceError.invalidConfig }
+
+        // Unwrap vault key using the current password.
+        let currentDerived = try PBKDF2.sha256(
+            password: currentPasswordUTF8,
+            salt: salt,
+            iterations: cfg.kdf.iterations,
+            keyByteCount: 32
+        )
+        let currentDerivedKey = SymmetricKey(data: currentDerived)
+
+        let vaultKeyData: Data
+        do {
+            let sealed = try AES.GCM.SealedBox(combined: wrappedCombined)
+            vaultKeyData = try AES.GCM.open(sealed, using: currentDerivedKey)
+        } catch {
+            throw VaultServiceError.wrongPasswordOrCorruptVault
+        }
+
+        // Wrap the same vault key using the new password.
+        let newSalt = randomBytes(count: 16)
+        let newDerived = try PBKDF2.sha256(
+            password: newPasswordUTF8,
+            salt: newSalt,
+            iterations: iterations,
+            keyByteCount: 32
+        )
+        let newDerivedKey = SymmetricKey(data: newDerived)
+        let newWrapped = try AES.GCM.seal(vaultKeyData, using: newDerivedKey)
+        guard let newWrappedCombined = newWrapped.combined else { throw VaultServiceError.missingCombinedRepresentation }
+
+        let newCfg = VaultConfig(
+            version: cfg.version,
+            kdf: .init(
+                saltB64: newSalt.base64EncodedString(),
+                iterations: iterations
+            ),
+            wrappedVaultKeyB64: newWrappedCombined.base64EncodedString(),
+            createdAt: cfg.createdAt
+        )
+        try store.saveConfig(newCfg)
+
+        // Keep Keychain cache consistent.
+        try? keychain.saveData(vaultKeyData, account: Self.keychainAccountVaultKey)
+    }
+
     func lock() {
         try? keychain.delete(account: Self.keychainAccountVaultKey)
     }

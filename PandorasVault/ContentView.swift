@@ -37,6 +37,12 @@ struct ContentView: View {
 
     private var header: some View {
         HStack {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 42, height: 42)
+                .cornerRadius(10)
+                .padding(.trailing, 4)
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("PandorasVault")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
@@ -174,6 +180,119 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .transition(.opacity.combined(with: .move(edge: .bottom)))
         .animation(.easeInOut(duration: 0.2))
+    }
+}
+
+// MARK: - Settings
+
+struct SettingsView: View {
+    @ObservedObject var vm: VaultViewModel
+
+    @State private var currentPassword: String = ""
+    @State private var newPassword: String = ""
+    @State private var confirmPassword: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                    .cornerRadius(10)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Settings")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("Update your vault password.")
+                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                }
+                Spacer()
+            }
+
+            GroupBox(label: Text("Change Password")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    SecureField("Current password", text: $currentPassword)
+                    SecureField("New password", text: $newPassword)
+                    SecureField("Confirm new password", text: $confirmPassword)
+
+                    HStack {
+                        Spacer()
+                        Button("Update Password") {
+                            vm.changePassword(
+                                currentPassword: currentPassword,
+                                newPassword: newPassword,
+                                confirmNewPassword: confirmPassword
+                            )
+                            currentPassword = ""
+                            newPassword = ""
+                            confirmPassword = ""
+                        }
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+                .padding(8)
+            }
+
+            if let status = vm.statusText {
+                // Reuse status banner styling from main UI.
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(vm.statusIsError ? Color.red : Color.green)
+                        .frame(width: 10, height: 10)
+                    Text(status)
+                        .font(.footnote)
+                    Spacer()
+                }
+                .padding(10)
+                .background((vm.statusIsError ? Color.red : Color.green).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(width: 520, height: 340)
+    }
+}
+
+// MARK: - About
+
+struct AboutView: View {
+    private var versionString: String {
+        let v = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
+        let b = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
+        return "Version \(v) (\(b))"
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 92, height: 92)
+                .cornerRadius(22)
+
+            Text("PandorasVault")
+                .font(.system(size: 24, weight: .semibold, design: .rounded))
+
+            Text(versionString)
+                .foregroundColor(.secondary)
+                .font(.footnote)
+
+            Divider()
+                .padding(.horizontal, 30)
+
+            (
+                Text("Developed by ")
+                + Text("Hephaestus Systems").bold()
+                + Text(" (Uner YILMAZ)")
+            )
+            .font(.system(size: 13))
+            .multilineTextAlignment(.center)
+
+            Spacer()
+        }
+        .padding(24)
+        .frame(width: 520, height: 320)
     }
 }
 

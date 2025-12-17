@@ -6,9 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: NSWindowController?
     private weak var window: NSWindow?
 
+    private var settingsWindowController: NSWindowController?
+    private var aboutWindowController: NSWindowController?
+    @MainActor private lazy var vm = VaultViewModel()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("PandorasVault: applicationDidFinishLaunching")
         NSApp.setActivationPolicy(.regular)
+        configureMenuBar()
 
         // Defer window creation to the next run-loop tick. In some launch contexts (notably
         // Xcode/LaunchServices), a window can exist but fail to become visible/frontmost
@@ -53,7 +58,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let vm = VaultViewModel()
         let contentView = ContentView(vm: vm)
 
         let w = NSWindow(
@@ -91,5 +95,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         w.orderFrontRegardless()
         NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
         NSLog("PandorasVault: showMainWindow created+shown, frame=%@", NSStringFromRect(w.frame))
+    }
+
+    // MARK: - Menu bar + windows
+
+    private func configureMenuBar() {
+        let mainMenu = NSMenu()
+
+        // App menu
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+
+        appMenu.addItem(
+            withTitle: "About PandorasVault",
+            action: #selector(showAboutWindow),
+            keyEquivalent: ""
+        ).target = self
+
+        appMenu.addItem(.separator())
+
+        appMenu.addItem(
+            withTitle: "Settings…",
+            action: #selector(showSettingsWindow),
+            keyEquivalent: ","
+        ).target = self
+
+        appMenu.addItem(.separator())
+
+        appMenu.addItem(
+            withTitle: "Quit PandorasVault",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    @objc @MainActor private func showSettingsWindow() {
+        if let existing = settingsWindowController?.window {
+            existing.makeKeyAndOrderFront(nil)
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            return
+        }
+
+        let root = SettingsView(vm: vm)
+        let w = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 340),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        w.title = "Settings"
+        w.isReleasedWhenClosed = false
+        w.center()
+        w.contentView = NSHostingView(rootView: root)
+
+        let wc = NSWindowController(window: w)
+        settingsWindowController = wc
+        wc.showWindow(nil)
+        w.makeKeyAndOrderFront(nil)
+        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    }
+
+    @objc @MainActor private func showAboutWindow() {
+        if let existing = aboutWindowController?.window {
+            existing.makeKeyAndOrderFront(nil)
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            return
+        }
+
+        let root = AboutView()
+        let w = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 320),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        w.title = "About PandorasVault"
+        w.isReleasedWhenClosed = false
+        w.center()
+        w.contentView = NSHostingView(rootView: root)
+
+        let wc = NSWindowController(window: w)
+        aboutWindowController = wc
+        wc.showWindow(nil)
+        w.makeKeyAndOrderFront(nil)
+        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     }
 }
